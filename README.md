@@ -33,10 +33,18 @@ A Python self-bot that listens for new member joins across all Discord servers y
    Edit `.env`:
 
    ```
+   # Account 1
    DISCORD_TOKEN=your_discord_user_token
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
    TELEGRAM_CHAT_ID=your_chat_id
+
+   # Account 2 (optional)
+   DISCORD_TOKEN_2=your_second_discord_token
+   TELEGRAM_BOT_TOKEN_2=your_second_telegram_bot_token
+   TELEGRAM_CHAT_ID_2=your_second_chat_id
    ```
+
+   Both accounts run in one process. Each sends alerts to its own Telegram bot/chat.
 
 ### Getting your Discord token
 
@@ -60,7 +68,8 @@ python main.py
 When running, you should see:
 
 ```
-Logged in as YourName#1234 — watching N server(s)
+[Account 1] Logged in as YourName — watching N server(s)
+[Account 2] Logged in as OtherName — watching M server(s)
 ```
 
 ## What you'll receive on Telegram
@@ -113,10 +122,9 @@ Do **not** commit `.env` — secrets go in Railway's dashboard only.
 1. Go to [railway.app](https://railway.app) and sign up (GitHub login works)
 2. **New Project** → **Deploy from GitHub repo** → select `discordd`
 3. Railway detects the `Dockerfile` and builds automatically
-4. Open the service → **Variables** → add:
-   - `DISCORD_TOKEN`
-   - `TELEGRAM_BOT_TOKEN`
-   - `TELEGRAM_CHAT_ID`
+4. Open the service → **Variables** → add account 1 vars, then account 2 if needed:
+   - `DISCORD_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+   - `DISCORD_TOKEN_2`, `TELEGRAM_BOT_TOKEN_2`, `TELEGRAM_CHAT_ID_2`
 5. Open **Deployments** → check logs for:
    ```
    Logged in as YourName — watching N server(s)
