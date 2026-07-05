@@ -1,24 +1,16 @@
-import os
-
 import requests
-from dotenv import load_dotenv
-
-load_dotenv()
-
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-def send_telegram(message: str) -> None:
-    """Send a message to the configured Telegram chat."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        raise ValueError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in .env")
+def send_telegram(message: str, *, bot_token: str, chat_id: str) -> None:
+    """Send a message to a Telegram chat."""
+    if not bot_token or not chat_id:
+        raise ValueError("Telegram bot token and chat ID are required")
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     response = requests.post(
         url,
         json={
-            "chat_id": TELEGRAM_CHAT_ID,
+            "chat_id": chat_id,
             "text": message,
             "disable_web_page_preview": True,
         },

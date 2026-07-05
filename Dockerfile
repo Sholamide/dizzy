@@ -5,6 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py notifier.py .
+COPY main.py notifier.py config.py .
 
 CMD ["python", "main.py"]
