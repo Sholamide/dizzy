@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -13,6 +14,32 @@ class AccountConfig:
     discord_token: str
     telegram_bot_token: str
     telegram_chat_id: str
+
+
+@dataclass(frozen=True)
+class AppSettings:
+    server_report_delay_hours: float
+    join_burst_window_seconds: int
+    join_burst_threshold: int
+    health_message_sampling: bool
+    data_dir: Path
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def load_settings() -> AppSettings:
+    return AppSettings(
+        server_report_delay_hours=float(os.getenv("SERVER_REPORT_DELAY_HOURS", "72")),
+        join_burst_window_seconds=int(os.getenv("JOIN_BURST_WINDOW_SECONDS", "300")),
+        join_burst_threshold=int(os.getenv("JOIN_BURST_THRESHOLD", "5")),
+        health_message_sampling=_bool_env("HEALTH_MESSAGE_SAMPLING", False),
+        data_dir=Path(os.getenv("DATA_DIR", "data")),
+    )
 
 
 def _load_account(
