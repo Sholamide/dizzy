@@ -32,6 +32,25 @@ def test_burst_true_when_threshold_met(tmp_path: Path):
     assert store.is_join_burst(guild_id, now=now, window_seconds=300, threshold=5) is True
 
 
+def test_count_joins_in_window_for_pre_record_burst(tmp_path: Path):
+    store = JoinStore(tmp_path / "joins.json", retention_days=7)
+    now = datetime.now(timezone.utc)
+    guild_id = "333"
+    for i in range(4):
+        store.record_join(
+            guild_id=guild_id,
+            user_id=str(i),
+            timestamp=now - timedelta(seconds=10 * i),
+            risk_score=10,
+            band="LOW",
+            flags=[],
+            default_avatar=False,
+        )
+    count = store.count_joins_in_window(guild_id, now=now, window_seconds=300)
+    assert count == 4
+    assert count + 1 >= 5  # pre-record: 5th joiner should be treated as burst
+
+
 def test_guild_stats_and_persistence(tmp_path: Path):
     path = tmp_path / "joins.json"
     store = JoinStore(path, retention_days=7)

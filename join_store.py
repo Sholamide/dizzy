@@ -69,14 +69,13 @@ class JoinStore:
         )
         self.flush()
 
-    def is_join_burst(
+    def count_joins_in_window(
         self,
         guild_id: str,
         *,
         now: datetime,
         window_seconds: int,
-        threshold: int,
-    ) -> bool:
+    ) -> int:
         if now.tzinfo is None:
             now = now.replace(tzinfo=timezone.utc)
         start = now - timedelta(seconds=window_seconds)
@@ -89,7 +88,20 @@ class JoinStore:
                 ts = ts.replace(tzinfo=timezone.utc)
             if start <= ts <= now:
                 count += 1
-        return count >= threshold
+        return count
+
+    def is_join_burst(
+        self,
+        guild_id: str,
+        *,
+        now: datetime,
+        window_seconds: int,
+        threshold: int,
+    ) -> bool:
+        return (
+            self.count_joins_in_window(guild_id, now=now, window_seconds=window_seconds)
+            >= threshold
+        )
 
     def guild_stats(self, guild_id: str, *, since: datetime) -> dict[str, Any]:
         if since.tzinfo is None:
