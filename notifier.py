@@ -1,6 +1,10 @@
 import requests
 
 
+class TelegramError(Exception):
+    pass
+
+
 def send_telegram(message: str, *, bot_token: str, chat_id: str) -> None:
     """Send a message to a Telegram chat."""
     if not bot_token or not chat_id:
@@ -16,4 +20,10 @@ def send_telegram(message: str, *, bot_token: str, chat_id: str) -> None:
         },
         timeout=10,
     )
-    response.raise_for_status()
+
+    if not response.ok:
+        try:
+            detail = response.json().get("description", response.text)
+        except ValueError:
+            detail = response.text
+        raise TelegramError(f"Telegram API error: {detail}")
