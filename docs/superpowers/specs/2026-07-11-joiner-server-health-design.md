@@ -154,7 +154,7 @@ Restart / redeploy
 ### Trigger
 
 - Discord event: `on_guild_join` (your account was added to a guild)
-- Also on startup: discover guilds in `client.guilds` that are **not** yet in the store → treat as newly seen and schedule 48h from first-seen time (or from now if unknown)
+- Also on startup: discover guilds in `client.guilds` that are **not** yet in the store → treat as newly seen and schedule 72h from first-seen time (or from now if unknown)
 
 **Important:** Existing servers already in the store as `reported=true` are never re-queued.
 
@@ -279,7 +279,7 @@ Gitignore `data/`.
 3. `server_store.py` + `on_guild_join` scheduling  
 4. `health_scorer.py` (join-based; optional message sampling at report time)  
 5. Background due-report ticker + one-shot Telegram report  
-6. README: joiner alerts + 48h server report behavior  
+6. README: joiner alerts + 72h server report behavior  
 
 ## Risks / honesty + mitigations
 
