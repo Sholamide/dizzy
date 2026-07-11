@@ -183,7 +183,7 @@ class JoinNotifierClient(discord.Client):
     ) -> None:
         super().__init__()
         self.account = account
-        self.settings = settings
+        self.app_settings = settings
         self.join_store = join_store
         self.server_store = server_store
         self._report_task: asyncio.Task[None] | None = None
@@ -201,7 +201,7 @@ class JoinNotifierClient(discord.Client):
                 guild_id=str(guild.id),
                 guild_name=guild.name,
                 now=now,
-                delay_hours=self.settings.server_report_delay_hours,
+                delay_hours=self.app_settings.server_report_delay_hours,
             )
         if self._report_task is None or self._report_task.done():
             self._report_task = asyncio.create_task(self._report_ticker())
@@ -212,7 +212,7 @@ class JoinNotifierClient(discord.Client):
             guild_id=str(guild.id),
             guild_name=guild.name,
             now=datetime.now(timezone.utc),
-            delay_hours=self.settings.server_report_delay_hours,
+            delay_hours=self.app_settings.server_report_delay_hours,
         )
         if created:
             print(f"[{self.account.name}] Scheduled server report for {guild.name}")
@@ -226,10 +226,10 @@ class JoinNotifierClient(discord.Client):
             self.join_store.count_joins_in_window(
                 str(member.guild.id),
                 now=now,
-                window_seconds=self.settings.join_burst_window_seconds,
+                window_seconds=self.app_settings.join_burst_window_seconds,
             )
             + 1
-            >= self.settings.join_burst_threshold
+            >= self.app_settings.join_burst_threshold
         )
         default_avatar = member.avatar is None
         avatar_url = None if default_avatar else str(member.avatar.url)
@@ -302,7 +302,7 @@ async def run_account(
 async def main_async() -> None:
     accounts = load_accounts()
     settings = load_settings()
-    data_dir: Path = settings.data_dir
+    data_dir = Path(settings.data_dir)
     join_store = JoinStore(data_dir / "join_history.json")
     server_store = ServerStore(data_dir / "server_watch.json")
     print(f"Starting {len(accounts)} Discord account(s)...")
