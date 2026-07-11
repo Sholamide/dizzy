@@ -1,8 +1,11 @@
 # Discord Join Notifier
 
-A Python self-bot that listens for new member joins across all Discord servers you're in, then sends a Telegram notification with details about the new member.
+A Python self-bot that watches Discord servers you’re in and notifies you on Telegram when:
 
-> **Warning:** This uses your personal Discord user token. Self-bots violate Discord's Terms of Service and can result in account bans. Use at your own risk.
+1. **Someone joins** — immediate alert with a risk score and flags (likely throwaway / farm patterns)
+2. **You join a new server** — silent monitoring for **72 hours**, then **one** detailed health report; that server is never reported again
+
+> **Warning:** This uses your personal Discord user token. Self-bots violate Discord’s Terms of Service and can result in account bans. Use at your own risk. Scoring is heuristic, not proof.
 
 ## Requirements
 
@@ -24,13 +27,9 @@ A Python self-bot that listens for new member joins across all Discord servers y
 
 3. **Configure environment variables**
 
-   Copy the example env file and fill in your values:
-
    ```bash
    cp .env.example .env
    ```
-
-   Edit `.env`:
 
    ```
    # Account 1
@@ -39,24 +38,17 @@ A Python self-bot that listens for new member joins across all Discord servers y
    TELEGRAM_CHAT_ID=your_chat_id
 
    # Account 2 (optional)
-   DISCORD_TOKEN_2=your_second_discord_token
-   TELEGRAM_BOT_TOKEN_2=your_second_telegram_bot_token
-   TELEGRAM_CHAT_ID_2=your_second_chat_id
+   DISCORD_TOKEN_2=...
+   TELEGRAM_BOT_TOKEN_2=...
+   TELEGRAM_CHAT_ID_2=...
+
+   # Scoring / reports (defaults shown)
+   SERVER_REPORT_DELAY_HOURS=72
+   JOIN_BURST_WINDOW_SECONDS=300
+   JOIN_BURST_THRESHOLD=5
+   HEALTH_MESSAGE_SAMPLING=false
+   DATA_DIR=data
    ```
-
-   Both accounts run in one process. Each sends alerts to its own Telegram bot/chat.
-
-### Getting your Discord token
-
-1. Open Discord in the browser
-2. Open DevTools (F12) → Network tab
-3. Filter by `api/` → find any request → copy the `Authorization` header value
-
-### Getting your Telegram chat ID
-
-1. Message your bot on Telegram
-2. Visit `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
-3. Find `"chat":{"id":...}` in the response
 
 ## Run
 
@@ -65,83 +57,83 @@ source .venv/bin/activate
 python main.py
 ```
 
-When running, you should see:
-
 ```
 [Account 1] Logged in as YourName — watching N server(s)
-[Account 2] Logged in as OtherName — watching M server(s)
 ```
 
-## What you'll receive on Telegram
+## What you’ll get on Telegram
+
+### Every member join
+
+Risk band + flags, e.g.:
 
 ```
-New member joined!
-Server: My Server (ID: 123456789)
-User: JohnDoe (JohnDoe#1234) (ID: 987654321)
-Account created: Jan 5, 2023 (2 years ago)
-Joined at: Jun 21, 2026 15:10 UTC
+🚨 HIGH RISK JOIN ALERT 🚨
+Risk score: 72/100
+Flags: very_new_account, default_avatar, join_burst
+...
 ```
+
+Bands: **LOW** (0–29), **MEDIUM** (30–59), **HIGH** (60–100).
+
+### After you join a new server (once)
+
+After `SERVER_REPORT_DELAY_HOURS` (default 72):
+
+```
+📊 NEW SERVER REPORT (72h)
+Health score / label / confidence / flags
+Join stats in the watch window
+```
+
+Already-reported servers are **never** re-reported (state in `data/server_watch.json`).
+
+## Persistence
+
+| File | Purpose |
+|------|---------|
+| `data/join_history.json` | Recent joins (bursts + health inputs) |
+| `data/server_watch.json` | 72h schedules + `reported` flags |
+
+On Railway, mount a volume at `/app/data` so reports aren’t re-scheduled after every redeploy.
+
+## Deploy to Railway
+
+1. Push code to GitHub (never commit `.env`)
+2. Deploy from GitHub; Dockerfile builds the app
+3. Set Variables: Discord + Telegram tokens, and optional scoring env vars
+4. Attach a volume to `/app/data`
+5. Check logs for `Logged in as ... — watching N server(s)`
+
+## Quick local test for server reports
+
+```bash
+SERVER_REPORT_DELAY_HOURS=0.01 python main.py
+```
+
+Join a test server with the watcher account → expect one health report within about a minute → restart → no second report.
 
 ## Project structure
 
 ```
 discordd/
-├── main.py           # Self-bot entry point and event listener
-├── notifier.py       # Telegram notification helper
-├── .env              # Secrets (never commit this)
-├── .env.example      # Env template
+├── main.py
+├── config.py
+├── notifier.py
+├── risk_scorer.py
+├── health_scorer.py
+├── join_store.py
+├── server_store.py
+├── data/                 # created at runtime (gitignored)
+├── tests/
+├── Dockerfile
 ├── requirements.txt
 └── README.md
 ```
 
-## Deploy to Railway (recommended)
-
-Railway runs the bot 24/7 with auto-restart. No server admin needed.
-
-### 1. Push code to GitHub
-
-```bash
-cd /Users/Olamide.Sholuade/discordd
-git init
-git add Dockerfile .dockerignore main.py notifier.py requirements.txt .env.example .gitignore README.md
-git commit -m "Add Discord join notifier"
-```
-
-Create a new repo on [github.com/new](https://github.com/new), then:
-
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/discordd.git
-git branch -M main
-git push -u origin main
-```
-
-Do **not** commit `.env` — secrets go in Railway's dashboard only.
-
-### 2. Deploy on Railway
-
-1. Go to [railway.app](https://railway.app) and sign up (GitHub login works)
-2. **New Project** → **Deploy from GitHub repo** → select `discordd`
-3. Railway detects the `Dockerfile` and builds automatically
-4. Open the service → **Variables** → add account 1 vars, then account 2 if needed:
-   - `DISCORD_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-   - `DISCORD_TOKEN_2`, `TELEGRAM_BOT_TOKEN_2`, `TELEGRAM_CHAT_ID_2`
-5. Open **Deployments** → check logs for:
-   ```
-   Logged in as YourName — watching N server(s)
-   ```
-
-The bot stays running. Railway restarts it if it crashes.
-
-**Cost:** about $5/month of usage credit (Hobby plan). You get a small free trial to start.
-
-### Useful Railway commands
-
-- **View logs:** service → **Deployments** → latest deploy → logs
-- **Restart:** **Deployments** → **Redeploy**
-- **Update token:** change variable → redeploy
-
 ## Notes
 
-- The bot listens to **all servers** your account is in
-- `on_member_join` requires the server to send member join events; very large servers may have this disabled or delayed
-- Keep your `.env` file private and never commit it to version control
+- Heuristics can flag real new users and miss careful bots — treat scores as guidance
+- Message sampling for health is **off** by default (`HEALTH_MESSAGE_SAMPLING=false`)
+- Large servers may delay join events
+- Keep secrets out of git
