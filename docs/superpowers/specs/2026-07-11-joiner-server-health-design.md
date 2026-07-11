@@ -143,17 +143,19 @@ If message history is unavailable (permissions / empty), score from join stats o
 
 ### Output
 
-- Score **0–100**
-- Label:
+- Score **0–100**, or `INSUFFICIENT DATA` when there is too little evidence
+- Label (when scored):
   - **70–100** → `LIKELY REAL`
   - **40–69** → `MIXED`
   - **0–39** → `SUSPICIOUS`
-- Short signal breakdown for Telegram
+- **Confidence:** `high` / `medium` / `low` (see Risks section)
+- Short signal breakdown + data source line for Telegram (`joins + messages` or `joins only`)
 
 ### API budget (v1)
 
 - Prefer cached scores for a short TTL (e.g. 15–30 minutes) so `/health` spam does not re-scrape Discord every time
 - Digest uses the same scorer with cache warming once per run
+- Message sampling is **off by default** (`HEALTH_MESSAGE_SAMPLING=false`); join-based health always available
 
 ## Part C — Telegram on-demand commands
 
@@ -228,6 +230,7 @@ Env additions (optional with defaults):
 | `JOIN_BURST_WINDOW_SECONDS` | `300` | Burst window |
 | `JOIN_BURST_THRESHOLD` | `5` | Joins in window to flag |
 | `HEALTH_CACHE_TTL_SECONDS` | `900` | Cache TTL for health scores |
+| `HEALTH_MESSAGE_SAMPLING` | `false` | Enable light message sampling for health (extra Discord risk) |
 
 Existing Discord/Telegram account env vars unchanged.
 
@@ -256,8 +259,72 @@ Existing Discord/Telegram account env vars unchanged.
 5. 12-hour digest scheduler
 6. README update for commands + new env vars
 
-## Risks / honesty
+## Risks / honesty + mitigations
 
-- Heuristics will false-positive real new users and false-negative good bots
-- Self-bot message sampling increases detection risk vs join-only listening
-- Large guilds may yield incomplete or delayed join/message data
+### 1) False positives (real new users) and false negatives (good bots)
+
+**Cannot eliminate** — only reduce and communicate uncertainty.
+
+| Mitigation | How |
+|------------|-----|
+| Multi-signal scoring | Never treat a single signal (e.g. new account) as HIGH alone when possible; HIGH usually needs stacked signals (age + avatar + burst, etc.) |
+| Show flags, not verdicts | Telegram says `Risk: 72` + `Flags: ...`, never “THIS IS A BOT” |
+| Band language | Use LOW / MEDIUM / HIGH — not “fake” / “real” as absolute labels for joiners |
+| Tunable thresholds | Env knobs for burst window/threshold and (later) age weights so you can loosen if too noisy |
+| Official bots | `is_bot` is a strong signal but still just a flag; Discord-verified bots are expected in many servers |
+| Digest context | Compare servers over time; one HIGH join ≠ bad server |
+
+**What we accept:** A brand-new real user with a default avatar can still land MEDIUM. That is intentional caution for your use case (authenticity priority).
+
+### 2) Self-bot message sampling increases Discord detection risk
+
+Join listening alone is already against ToS; history scraping is noisier.
+
+| Mitigation | How |
+|------------|-----|
+| Join-first health | v1 health score uses **join history primarily**; message sampling is optional / secondary |
+| Hard caps | Max channels (e.g. 3–5) and messages per channel (e.g. ≤50); never full channel history |
+| Cache aggressively | `HEALTH_CACHE_TTL_SECONDS` (default 15 min) so digests + `/health` reuse scores |
+| Sample only on demand + digest | Do **not** scrape on every join — only when computing health |
+| Prefer recent cache in digests | Warm once per digest cycle, not per guild repeatedly |
+| Feature flag | `HEALTH_MESSAGE_SAMPLING=true|false` (default `false` initially) — enable when you accept the extra risk |
+| Slow rate | Small delays between channel fetches if sampling multiple guilds |
+
+**Default v1 stance:** Ship server health with **join-based signals first**; turn on light message sampling behind the flag after join scoring is stable.
+
+### 3) Large guilds: incomplete / delayed join and message data
+
+| Mitigation | How |
+|------------|-----|
+| Confidence label | Attach `confidence: high \| medium \| low` to health reports based on how much data we actually had |
+| Partial reports | If messages unavailable → score from joins only and say so in Telegram (`Data: joins only`) |
+| No fake precision | If &lt; N joins in window and no message sample → show `INSUFFICIENT DATA` instead of a misleading 50/100 |
+| Time windows | Use rolling windows (e.g. 12h / 24h) you can actually observe, not “all time” |
+| Name matching | `/health <name>` uses best-effort match; prefer server ID when ambiguous |
+
+### Confidence rules (v1)
+
+| Situation | Confidence |
+|-----------|------------|
+| Message sample + ≥10 recorded joins in window | `high` |
+| Joins only, ≥10 joins | `medium` |
+| Joins only, &lt;10 joins, or empty/unreadable channels | `low` / `INSUFFICIENT DATA` |
+
+### Product wording (Telegram)
+
+Prefer:
+
+- `Risk: HIGH (72) — likely throwaway / farm pattern`
+- `Server: SUSPICIOUS (28) — confidence: low (joins only)`
+
+Avoid:
+
+- `This user is a bot`
+- `This server is fake`
+
+## Spec amendments from this section
+
+- Add env `HEALTH_MESSAGE_SAMPLING` default `false`
+- Health scorer: join-based path required; message path optional
+- Health replies include confidence + data source line
+- Insufficient-data path instead of inventing a mid score with no evidence
