@@ -9,7 +9,7 @@
 Enhance the existing multi-account join notifier with:
 
 1. **Joiner authenticity scoring** (top priority) — risk score + flags on every user join to any watched server
-2. **One-shot server health report** — when *you* join a new Discord server, monitor it quietly for **48 hours**, then send **one** detailed authenticity report with flags; **never re-report** that server again
+2. **One-shot server health report** — when *you* join a new Discord server, monitor it quietly for **72 hours**, then send **one** detailed authenticity report with flags; **never re-report** that server again
 
 Detection is heuristic (signals + weighted scores), not ground truth.
 
@@ -18,7 +18,7 @@ Detection is heuristic (signals + weighted scores), not ground truth.
 | Event | What happens |
 |-------|----------------|
 | Someone joins a server you’re in | Immediate report: user details + risk score + flags (LOW / MEDIUM / HIGH) |
-| *You* join a new server | Silent monitoring starts; after **48 hours**, one detailed server health report with flags |
+| *You* join a new server | Silent monitoring starts; after **72 hours**, one detailed server health report with flags |
 | Same server later | **No** further health digests or re-reports for that server |
 
 ## Goals
@@ -26,7 +26,7 @@ Detection is heuristic (signals + weighted scores), not ground truth.
 | Priority | Goal |
 |----------|------|
 | P0 | Flag likely-fake / bot joiners with a clear risk band and reasons |
-| P1 | After 48h in a newly joined server, send one authenticity report with flags |
+| P1 | After 72h in a newly joined server, send one authenticity report with flags |
 | P1 | Persist “already reported” so the same server is not reported again |
 
 ## Non-goals (v1)
@@ -56,7 +56,7 @@ main.py
   │    │    → risk_scorer.score_member()
   │    │    → Telegram join alert (always)
   │    ├─ on_guild_join (you joined a server)
-  │    │    → server_store.schedule_report(guild, due_at = now + 48h)
+  │    │    → server_store.schedule_report(guild, due_at = now + 72h)
   │    └─ background ticker
   │         → for each due, unreported guild
   │              → health_scorer.score_guild()
@@ -131,13 +131,13 @@ Account created: ...
 Joined at: ...
 ```
 
-## Part B — One-shot server health report (48 hours)
+## Part B — One-shot server health report (72 hours)
 
 ### Lifecycle
 
 ```
 You join guild X
-  → server_store: status=watching, joined_at=now, report_due_at=now+48h, reported=false
+  → server_store: status=watching, joined_at=now, report_due_at=now+72h, reported=false
 
 Every few minutes (background)
   → if report_due_at <= now AND reported=false
@@ -158,23 +158,23 @@ Restart / redeploy
 
 **Important:** Existing servers already in the store as `reported=true` are never re-queued.
 
-### What “monitor for 48 hours” means
+### What “monitor for 72 hours” means
 
 During the wait window, the bot already records normal join events into `join_store`. At report time it uses:
 
 - Joins observed in that guild since `joined_at` (risk averages, default-avatar rate, burstiness, churn)
 - Optional light message sampling **only at report time** (if `HEALTH_MESSAGE_SAMPLING=true`)
 
-No continuous scrape during the 48h wait.
+No continuous scrape during the 72h wait. Three days covers weekday + weekend patterns better than 48h.
 
 ### Report contents (detailed, once)
 
 ```
-📊 NEW SERVER REPORT (48h)
+📊 NEW SERVER REPORT (72h)
 Server: Name (ID)
 Watcher: Account 1
 Watched since: ...
-Report window: 48h
+Report window: 72h
 
 Health: 71/100 — LIKELY REAL
 Confidence: medium
@@ -225,7 +225,7 @@ Key: `(watcher_account_name, guild_id)`
 ### `join_store` (`data/join_history.json`)
 
 - Recent joins: guild_id, user_id, timestamp, risk_score, band, flags
-- Retention: last 7 days (covers 48h windows + bursts)
+- Retention: last 7 days (covers 72h windows + bursts)
 
 ### `server_store` (`data/server_watch.json`)
 
@@ -251,7 +251,7 @@ Gitignore `data/`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `SERVER_REPORT_DELAY_HOURS` | `48` | Wait after joining a server before one-shot report |
+| `SERVER_REPORT_DELAY_HOURS` | `72` | Wait after joining a server before one-shot report |
 | `JOIN_BURST_WINDOW_SECONDS` | `300` | Burst window for joiner scoring |
 | `JOIN_BURST_THRESHOLD` | `5` | Joins in window to flag |
 | `HEALTH_MESSAGE_SAMPLING` | `false` | Optional message sampling at report time only |
@@ -292,7 +292,7 @@ Gitignore `data/`.
 ### Self-bot message sampling risk
 
 - Message sampling **off by default**  
-- Only runs **once** at the 48h report (if enabled), not continuously  
+- Only runs **once** at the 72h report (if enabled), not continuously  
 - Join-based report always available  
 
 ### Large / quiet servers
@@ -303,4 +303,4 @@ Gitignore `data/`.
 ## Revision notes (vs earlier draft)
 
 **Removed:** `/health` commands, recurring 12h digests, re-reporting servers.  
-**Added:** 48h watch after *you* join a server → single detailed report → permanent skip.
+**Added:** 72h watch after *you* join a server → single detailed report → permanent skip.
