@@ -1,3 +1,4 @@
 discord.py-self
 requests
 python-dotenv
+pytest
