@@ -76,7 +76,7 @@ def test_server_report_message_includes_join_stats_and_health_result():
         ),
     )
 
-    assert "SERVER HEALTH REPORT" in message
+    assert "NEW SERVER REPORT (72h)" in message
     assert "LIKELY REAL" in message
     assert "Health score: 91/100" in message
     assert "Total joins: 12" in message

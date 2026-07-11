@@ -102,7 +102,7 @@ def build_server_report_message(
     score = "n/a" if health.score is None else f"{health.score}/100"
     return (
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "📋 SERVER HEALTH REPORT\n"
+        "📊 NEW SERVER REPORT (72h)\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"🤖 Watcher: {account.name}\n\n"
         "📌 SERVER INFO\n"
@@ -233,13 +233,18 @@ class JoinNotifierClient(discord.Client):
         )
         default_avatar = member.avatar is None
         avatar_url = None if default_avatar else str(member.avatar.url)
-        risk = score_member_signals(
-            created_at=member.created_at,
-            avatar_url=avatar_url,
-            username=str(member),
-            is_bot=member.bot,
-            join_burst=join_burst,
-        )
+        try:
+            risk = score_member_signals(
+                created_at=member.created_at,
+                avatar_url=avatar_url,
+                username=str(member),
+                is_bot=member.bot,
+                join_burst=join_burst,
+            )
+        except Exception as exc:
+            print(f"[{self.account.name}] Risk scoring failed: {exc}")
+            risk = RiskResult(score=0, band="LOW", flags=["scoring_error"])
+
         self.join_store.record_join(
             guild_id=str(member.guild.id),
             user_id=str(member.id),
